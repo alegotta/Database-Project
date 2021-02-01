@@ -1,0 +1,277 @@
+\section{Direct Translation}
+
+\subsection{Relational schema}
+
+	City(\uline{name}, latitude, longitude) \\
+	
+	
+	Company(\uline{name})
+	
+	$ \ \ $ Inclusion: Company[name] $\subseteq$ Operates[company]
+	
+	$ \ \ $ Foreign Key: Company[name] $\subseteq$ BasedIn[company] \\
+	
+	
+	Line(\uline{shortCode, cityName}, color, vehicleType, description)
+	
+	$ \ \ $ Foreign Key: Line[cityName] $\subseteq$ City[name]
+	
+	$ \ \ $ Inclusion: Line[shortCode, cityName] $\subseteq$ PartOf[lineCode, lineCity] \\
+
+	
+	Trip(\uline{code})
+	
+	$ \ \ $ Inclusion: Trip[code] $\subseteq$ StopsAt[trip]
+	
+	$ \ \ $ Foreign Key: Trip[code] $\subseteq$ PartOf[trip]
+	
+	$ \ \ $ Foreign Key: Trip[code] $\subseteq$ Operates[trip]
+	
+	$ \ \ $ Foreign Key: Trip[code] $\subseteq$ RunsOn[trip] \\
+	
+	
+	Calendar(\uline{ID}, startDate, endDate, {\small monday, tuesday, wednesday, thurdsay, friday, saturday, sunday) }
+	
+	$ \ \ $ Inclusion: Calendar[ID] $\subseteq$ RunsOn[calendar] \\
+	
+	
+	Date(\uline{date})
+	
+	$ \ \ $ Inclusion: Date[date] $\subseteq$ HasExceptionOn[date] \\
+	
+	
+	Stop(\uline{latitude, longitude})
+	
+	$ \ \ $ Inclusion: Stop[latitude, longitude] $\subseteq$ StopsAt[latitude, longitude] 
+	
+	$ \ \ $ Inclusion: Stop[latitude, longitude] $\subseteq$ StopHasName[latitude, longitude] 
+	
+	$ \ \ $ Foreign key: Stop[latitude, longitude] $\subseteq$ Located[stopLat, stopLon] \\
+	
+	
+	StopName(\uline{language, value})
+	
+	$ \ \ $ Inclusion: StopName[language, value] $\subseteq$ StopHasName[language, value] \\
+	
+	
+	Platform(\uline{latitude, longitude}, platformName)
+	
+	$ \ \ $ Foreign Key: Platform[latitude, longitude] $\subseteq$ Stop[latitude, longitude] \\
+	
+	
+	StopsAt(\uline{latitude, longitude, trip}, order, arrivalTime*, departureTime*)
+	
+	$ \ \ $ Foreign Key: StopsAt[latitude, longitude] $\subseteq$ Stop[latitude, longitude]
+	
+	$ \ \ $ Foreign Key: StopsAt[trip] $\subseteq$ Trip[code] \\
+	
+	
+	StopHasName(\uline{latitude, longitude, language, value})
+	
+	$ \ \ $ Foreign Key: StopHasName[latitude, longitude] $\subseteq$ Stop[latitude, longitude]
+	
+	$ \ \ $ Foreign Key: StopHasName[language, value] $\subseteq$ StopName[language, value] \\
+	
+	Located(\uline{stopLat, stopLon}, cityName) 
+	
+	$ \ \ $ Foreign Key: Located[stopLat, stopLon] $\subseteq$ Stop[latitude, longitude]
+	
+	$ \ \ $ Foreign Key: Located[cityName] $\subseteq$ City[name] \\
+	
+	\newpage
+	RunsOn(\uline{trip, calendar})
+	
+	$ \ \ $ Foreign Key: RunsOn[trip] $\subseteq$ Trip[code]
+	
+	$ \ \ $ Inclusion: RunsOn[calendar] $\subseteq$ Calendar[ID] \\
+	
+	
+	HasExceptionOn(\uline{date, calendar}, suppressed)
+	
+	$ \ \ $ Foreign Key: HasExceptionOn[date] $\subseteq$ Date[date]
+	
+	$ \ \ $ Foreign Key: HasExceptionOn[calendar] $\subseteq$ Calendar[ID] \\
+	
+
+	BasedIn(\uline{company}, city)
+	
+	$ \ \ $ Foreign Key: BasedIn[city] $\subseteq$ City[name]
+	
+	$ \ \ $ Foreign Key: BasedIn[company] $\subseteq$ Company[name] \\
+	
+	
+	Operates(\uline{trip}, company)
+	
+	$ \ \ $ Foreign Key: Operates[trip] $\subseteq$ Trip[code]
+	
+	$ \ \ $ Foreign Key: Operates[company] $\subseteq$ Company[name] \\
+	
+	
+	PartOf(\uline{trip}, lineCode, lineCity)
+	
+	$ \ \ $ Foreign Key: PartOf[trip] $\subseteq$ Trip[code]
+	
+	$ \ \ $ Foreign Key: PartOf[lineCode, lineCity] $\subseteq$ Line[shortCode, city]
+	
+	
+\subsection{External Constraints}
+
+	Constraint 7) was added. It is originated from the fact that a trip must have at least two stops, which was previously indicated in the conceptual schema with minimum cardinality equal to 2.
+	
+	\begin{enumerate}
+		\item For each tuple in the entity \texttt{Calendar}, the attribute \textit{endDate} must encode a date strictly greater than \textit{startDate}.
+		
+		\item For each tuple in the relationship \texttt{stopsAt}, the attribute \textit{departureTime} must encode a time greater or equal than \textit{arrivalTime}.
+		
+		\item In the relationship \texttt{stopsAt}, for the first stop of a trip (with \textit{order=1}), the attribute \textit{arrivalTime} must be omitted and \textit{departureTime} must be specified. For the last stop (with maximal \textit{order}), the attribute \textit{arrivalTime} must be specified and \textit{departureTime} must be omitted. For all the other stops, both attributes must be present.
+		
+		\item In the relationship \texttt{stopsAt}, the attribute \textit{order} must be equal to \texttt{1} for the first stop of a trip, and should be incremented by one for subsequent stops.
+		
+		\item In the relationship \texttt{stopsAt}, for every pair of tuples \textit{T1} and \textit{T2} within the same trip, if \textit{T1[order] < T2[order]}, then \textit{T1[departureTime] < T2[arrivalTime]}
+		
+		\item For a \texttt{Trip}, the exceptional dates defined through the \texttt{hasExceptionOn} relationship must be in between \textit{startDate} and \textit{endDate} defined by the corresponding \texttt{Calendar} instance. Moreover, if \textit{suppressed=True} then the corresponding day of week in the \texttt{Calendar} instance has value \textit{True}. At the opposite, if \textit{suppressed=False} then the corresponding day of week in \texttt{Calendar} has value \textit{False};
+		
+		\item In the relation \texttt{StopsAt}, the minimum number of tuples having the same value for the \textit{trip} attribute is two.
+	\end{enumerate} 
+
+\newpage
+\subsection{Application Load}
+	
+	\paragraph{(1)} Get a list of \textit{(maximum)} ten stops with name in a specific language matching the user-given string
+	\begin{table}[h]
+		\centering
+		\begin{tabular}{|c|c|c|}
+			\hline
+			\textbf{Concept} & \textbf{Accesses} & \textbf{Type} \\
+			\hline
+			StopName & 75 & Read \\ \hline
+			StopHasName & 10 & Read \\ \hline
+			Stop & 10 & Read \\ \hline
+			ISA-S-P & 10 & Read \\ \hline
+			Platform & 10 & Read \\ \hline
+			Located & 10 & Read \\ \hline
+			City & 10 & Read \\ \hline
+		\end{tabular}
+		\caption{Access table for operation 1}\label{tbl:conc.access-1}
+	\end{table}
+	
+	\paragraph{(2)} Get a list of \textit{(maximum)} ten stops with name in a specific language that are contained in a set of coordinates
+	\begin{table}[h]
+		\centering
+		\begin{tabular}{|c|c|c|}
+			\hline
+			\textbf{Concept} & \textbf{Accesses} & \textbf{Type} \\
+			\hline
+			Stop & 75 & Read \\ \hline 
+			StopHasName & 10 & Read \\ \hline
+			StopName & 10 & Read \\ \hline
+			Located & 10 & Read \\ \hline
+			City & 10 & Read \\ \hline
+			ISA-S-P & 10 & Read \\ \hline
+			Platform & 10 & Read \\ \hline
+		\end{tabular}
+		\caption{Access table for operation 2}\label{tbl:conc.access-2}
+	\end{table}
+	
+	\newpage
+	\paragraph{(3)} Find the next ten trips, with line and company information, that depart from a specific stop at a given date and time \textit{(assuming that the stop coordinates are known)}
+	\begin{table}[h]
+		\centering
+		\begin{tabular}{|c|c|c|}
+			\hline
+			\textbf{Concept} & \textbf{Accesses} & \textbf{Type} \\
+			\hline
+			StopsAt & 15 & Read \\ \hline
+			Trip & 15 & Read \\ \hline
+			RunsOn & 15 & Read \\ \hline
+			Calendar & 15 & Read \\ \hline
+			HasExceptionOn & 225 & Read \\ \hline
+			Date & 225 & Read \\ \hline
+			PartOf & 10 & Read \\ \hline
+			Line & 10 & Read \\ \hline
+			Operates & 10 & Read \\ \hline
+			Company & 10 & Read \\ \hline
+		\end{tabular}
+		\caption{Access table for operation 3}\label{tbl:conc.access-3}
+	\end{table}
+	
+	\paragraph{(4)} Find the next ten trips departing from one stop and arriving at another one, at a given date and time \textit{(assuming that the stop coordinates are known)}
+	
+	\begin{table}[h]
+		\centering
+		\begin{tabular}{|c|c|c|}
+			\hline
+			\textbf{Concept} & \textbf{Accesses} & \textbf{Type} \\
+			\hline
+			StopsAt & 30 & Read \\ \hline
+			Trip & 30 & Read \\ \hline
+			RunsOn & 30 & Read \\ \hline
+			Calendar & 30 & Read \\ \hline
+			HasExceptionOn & 225 & Read \\ \hline
+			Date & 225 & Read \\ \hline
+			PartOf & 10 & Read \\ \hline
+			Line & 10 & Read \\ \hline
+			Operates & 10 & Read \\ \hline
+			Company & 10 & Read \\ \hline
+		\end{tabular}
+		\caption{Access table for operation 4}\label{tbl:conc.access-4}
+	\end{table}
+	
+	\newpage
+	\paragraph{(5)} Add a new company given the name and the headquarter city, \textit{and considering that all possible cities are already loaded into the database}
+	
+	\begin{table}[h]
+		\centering
+		\begin{tabular}{|c|c|c|}
+			\hline
+			\textbf{Concept} & \textbf{Accesses} & \textbf{Type} \\
+			\hline
+			City & 1 & Read \\ \hline
+			Company & 1 & Write \\ \hline 
+			basedIn & 1 & Write \\ \hline
+		\end{tabular}
+		\caption{Access table for operation 5}\label{tbl:conc.access-5}
+	\end{table}
+	
+	\paragraph{(6)} Add a new line given short code, color, type of vehicle and city, \textit{and considering that all possible cities are already loaded into the database}
+	\begin{table}[h]
+		\centering
+		\begin{tabular}{|c|c|c|}
+			\hline
+			\textbf{Concept} & \textbf{Accesses} & \textbf{Type} \\
+			\hline
+			City & 1 & Read \\ \hline
+			Line & 1 & Write \\ \hline
+			originates & 1 & Write \\ \hline
+		\end{tabular}
+		\caption{Access table for operation 6}\label{tbl:conc.access-6}
+	\end{table}
+	
+	\paragraph{(7)} Add a new trip given the code, the timetable, the operating company and the calendar
+	\begin{table}[h]
+		\centering
+		\begin{tabular}{|c|c|c|}
+			\hline
+			\textbf{Concept} & \textbf{Accesses} & \textbf{Type} \\
+			\hline
+			Trip & 1 & Write \\ \hline
+			stopsAt & 9 & Write \\ \hline
+			partOf & 1 & Write \\ \hline
+			Operates & 1 & Write \\ \hline
+			RunsOn & 1 & Read \\ \hline
+		\end{tabular}
+		\caption{Access table for operation 7}\label{tbl:conc.access-7}
+	\end{table}
+	
+	\paragraph{(8)} Modify the schedule for a calendar knowing its code (add one exceptional date)
+	\begin{table}[h!]
+		\centering
+		\begin{tabular}{|c|c|c|}
+			\hline
+			\textbf{Concept} & \textbf{Accesses} & \textbf{Type} \\
+			\hline
+			HasException & 1 & Write \\ \hline
+			Date & 1 & Write \\ \hline
+		\end{tabular}
+		\caption{Access table for operation 8}\label{tbl:conc.access-8}
+	\end{table}

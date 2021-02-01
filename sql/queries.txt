@@ -1,0 +1,43 @@
+--1
+SELECT S.city, SN.value AS name, S.latitude, S.longitude
+FROM Stop S, StopHasName SN
+WHERE S.latitude=SN.latitude AND S.longitude=SN.longitude AND S.platformName IS NULL AND SN.value ILIKE CONCAT('',?,'%') AND SN.language=?;
+
+--2
+//Credits to https://gis.stackexchange.com/questions/31628/find-features-within-given-coordinates-and-distance-using-mysql
+SELECT S.city, SN.value AS name, S.latitude, S.longitude
+FROM Stop S, StopHasName SN
+WHERE SN.latitude=S.latitude AND SN.longitude=S.longitude
+AND acos( cos(radians(?)) * cos(radians(S.latitude)) * cos(radians(S.longitude) - radians(?)) + sin(radians(?)) * sin(radians(S.latitude)) ) * 6371393 <= ?
+AND S.platformName IS NULL AND SN.language LIKE CONCAT ('%',?,'%');
+
+--3
+SELECT T.company, L.shortCode AS Line, L.vehicleType, T.code as "Trip Code", SA.departureTime AS "Departure Time" 
+FROM trip T, calendar C, stopsAt SA, line L 
+WHERE SA.latitude=? AND SA.longitude=? AND SA.departureTime>=?
+AND T.calendar=C.ID AND T.code=SA.trip AND T.lineCode=L.shortCode
+AND (((C.monday=True) AND (? NOT IN (SELECT date FROM HasExceptionOn E WHERE suppressed=True AND E.calendar=C.ID))) OR (? IN (SELECT date FROM HasExceptionOn E WHERE suppressed=False AND E.calendar=C.ID)))
+ORDER BY SA.arrivalTime
+LIMIT 10
+
+--4
+SELECT T.company, L.shortCode AS Line, L.vehicleType, T.code as "Trip Code", S1.departureTime AS "Departure Time", S2.arrivalTime AS "Arrival Time", (S2.arrivalTime-S1.departureTime) AS duration
+FROM trip T, calendar C, stopsAt S1, stopsAt S2, line L 
+WHERE S1.latitude='12.3456' AND S1.longitude='23.4567' AND S2.latitude='34.5678' AND S2.longitude='45.6789' AND S1.departureTime>='12:00' 
+AND S1.trip=S2.trip AND T.calendar=C.ID AND T.code=S1.trip AND T.lineCode=L.shortCode
+AND (((C.monday=True) AND ('2021-01-01' NOT IN (SELECT date FROM HasExceptionOn E WHERE suppressed=True AND E.calendar=C.ID))) OR ('2021-01-01' IN (SELECT date FROM HasExceptionOn E WHERE suppressed=False AND E.calendar=C.ID)))
+ORDER BY S1.arrivalTime
+LIMIT 10
+
+--5
+INSERT INTO Company VALUES(?, ?)
+
+--6
+INSERT INTO Line(shortCode, color, vehicleType, cityName) VALUES (?, ?, ?, ?);
+
+--7
+INSERT INTO Trip(code,calendar,lineCode,lineCity,company) VALUES ();
+INSERT INTO StopsAt(latitude,longitude,arrivalTime,departureTime) VALUES ();
+
+--8
+INSERT INTO HasExceptionOn VALUES (?, ?, ?);

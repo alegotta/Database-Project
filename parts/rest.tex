@@ -1,0 +1,358 @@
+\section{Restructuring of the relational schema}
+
+\noindent The obtained relational schema can be further optimized.
+
+\medskip
+Firstly, some redundant relations are found: \texttt{StopName} and \texttt{HasName}, and also \texttt{Date} and \texttt{HasExceptionOn}. In both cases, one may see that the first relations consist of just one attribute, and that the same attribute is already included in the second relations as a foreign key. It is therefore reasonable to delete \texttt{StopName} and \texttt{Date}, because the relevant data can be queried by using the \texttt{HasName} and \texttt{HasExceptionOn}.
+
+\medskip
+In general, it was noticed that the complexity of queries for interactive operations (i.e. 1-4) was quite high and it involved a considerable number of joins between relations. For this reason, the decision taken was to delete those relations deriving from relationships in the original schema, where one role had cardinality \textit{(1,1)}, for example \textit{RunsOn, PartOf, ...}. These relations have been merged into the role with cardinality \textit{(1,1)}; the inclusion, foreign key and external constraints have been modified accordingly.
+
+\medskip
+Another context in which a relation may be deleted is the one of \texttt{Stop} and \texttt{Platform}. The latter relation contains the name of the platform, plus a reference to the Stop relation. To reduce the number of joins needed to perform the various operations, it has been chosen to merge those relations together. The \texttt{Stop} relation will then gain a new \textit{nullable} attribute, \texttt{platformName}. Even though this increases the number of pages in the relation, it is also reducing the queries complexity, in particular the one of operations 3 and 4. Since those operations are interactive, more importance has been given to execution time rather than space efficiency.
+
+\subsection{Restructured schema}
+
+	City(\uline{name}, latitude, longitude) \\
+
+
+	Company(\uline{name}, headquarterCity)
+
+	$ \ \ $ Foreign key: Company[headquarterCity] $\subseteq$ City[name] \\
+
+
+	Line(\uline{shortCode, departingCity}, color, vehicleType, description)
+
+	$ \ \ $ Foreign Key: Line[departingCity] $\subseteq$ City[name]
+
+	$ \ \ $ Inclusion: Line[shortCode, departingCity] $\subseteq$ Trip[lineCode, lineCity] \\
+
+
+	Trip(\uline{code}, calendar, company, lineCode, lineCity)
+
+	$ \ \ $ Inclusion: Trip[code] $\subseteq$ StopsAt[trip]
+
+	$ \ \ $ Foreign Key: Trip[calendar] $\subseteq$ Calendar[ID]
+
+	$ \ \ $ Foreign Key: Trip[company] $\subseteq$ Company[name]
+
+	$ \ \ $ Foreign Key: Trip[lineCode,lineCity] $\subseteq$ Line[shortCode,departingCity] \\
+
+
+	Calendar(\uline{ID}, startDate, endDate, {\small monday, tuesday, wednesday, thurdsay, friday, saturday, sunday) }
+
+	$ \ \ $ Inclusion: Calendar[ID] $\subseteq$ Trip[calendar] \\
+
+
+	Stop(\uline{latitude, longitude}, city, platformName*)
+
+	$ \ \ $ Inclusion: Stop[latitude, longitude] $\subseteq$ StopsAt[latitude, longitude]
+
+	$ \ \ $ Inclusion: Stop[latitude, longitude] $\subseteq$ StopHasName[latitude, longitude]
+
+	$ \ \ $ Foreign Key: Stop[city] $\subseteq$ City[name] \\
+
+	\newpage
+	StopsAt(\uline{latitude, longitude, trip}, order, arrivalTime*, departureTime*)
+
+	$ \ \ $ Foreign Key: StopsAt[latitude, longitude] $\subseteq$ Stop[latitude, longitude]
+
+	$ \ \ $ Foreign Key: StopsAt[trip] $\subseteq$ Trip[code] \\
+
+
+	StopHasName(\uline{latitude, longitude, language} value)
+
+	$ \ \ $ Foreign Key: StopHasName[latitude, longitude] $\subseteq$ Stop[latitude, longitude] \\
+
+
+	HasExceptionOn(\uline{date, calendar}, suppressed)
+
+	$ \ \ $ Foreign Key: HasExceptionOn[calendar] $\subseteq$ Calendar[ID]
+
+\subsection{External Constraints}
+
+\begin{enumerate}
+	\item For each tuple in the entity \texttt{Calendar}, the attribute \textit{endDate} must encode a date strictly greater than \textit{startDate}.
+
+	\item For each tuple in the relationship \texttt{stopsAt}, the attribute \textit{departureTime} must encode a time greater or equal than \textit{arrivalTime}.
+
+	\item In the relationship \texttt{stopsAt}, for the first stop of a trip (with \textit{order=1}), the attribute \textit{arrivalTime} must be omitted and \textit{departureTime} must be specified. For the last stop (with maximal \textit{order}), the attribute \textit{arrivalTime} must be specified and \textit{departureTime} must be omitted. For all the other stops, both attributes must be present.
+
+	\item In the relationship \texttt{stopsAt}, the attribute \textit{order} must be equal to \texttt{1} for the first stop of a trip, and should be incremented by one for subsequent stops.
+
+	\item In the relationship \texttt{stopsAt}, for every pair of tuples \textit{T1} and \textit{T2} within the same trip, if \textit{T1[order] < T2[order]}, then \textit{T1[departureTime] < T2[arrivalTime]}
+
+	\item For a \texttt{Trip}, the exceptional dates defined through the \texttt{hasExceptionOn} relationship must be in between \textit{startDate} and \textit{endDate} defined by the corresponding \texttt{Calendar} instance. Moreover, if \textit{suppressed=True} then the corresponding day of week in the \texttt{Calendar} instance has value \textit{True}. At the opposite, if \textit{suppressed=False} then the corresponding day of week in \texttt{Calendar} has value \textit{False};
+
+	\item In the relation \texttt{StopsAt}, the minimum number of tuples having the same value for the \textit{trip} attribute is two.
+\end{enumerate}
+
+\newpage
+\subsection{Application Load}
+
+\paragraph{(1)} Get a list of \textit{(maximum)} ten stops with name in a specific language matching the user-given string
+
+\begin{table}[h]
+	\centering
+	\begin{tabular}{|c|c|c|}
+		\hline
+		\textbf{Concept} & \textbf{Accesses} & \textbf{Type} \\
+		\hline
+		StopHasName & 75 & Read \\ \hline
+		Stop & 10 & Read \\ \hline
+	\end{tabular}
+	\caption{Access table for operation 1}\label{tbl:rest.access-1}
+\end{table}
+
+\paragraph{(2)} Get a list of \textit{(maximum)} ten stops with name in a specific language that are contained in a set of coordinates
+
+\begin{table}[h]
+	\centering
+	\begin{tabular}{|c|c|c|}
+		\hline
+		\textbf{Concept} & \textbf{Accesses} & \textbf{Type} \\
+		\hline
+		Stop & 75 & Read \\ \hline
+		StopHasName & 10 & Read \\ \hline
+	\end{tabular}
+	\caption{Access table for operation 2}\label{tbl:rest.access-2}
+\end{table}
+
+\paragraph{(3)} Find the next ten trips, with line and company information, that depart from a specific stop at a given date and time \textit{(assuming that the stop coordinates are known)}
+\begin{table}[h]
+	\centering
+	\begin{tabular}{|c|c|c|}
+		\hline
+		\textbf{Concept} & \textbf{Accesses} & \textbf{Type} \\
+		\hline
+		StopsAt & 15 & Read \\ \hline
+		Trip & 15 & Read \\ \hline
+		Calendar & 15 & Read \\ \hline
+		HasExceptionOn & 225 & Read \\ \hline
+		Line & 10 & Read \\ \hline
+	\end{tabular}
+	\caption{Access table for operation 3}\label{tbl:rest.access-3}
+\end{table}
+
+\paragraph{(4)} Find the next ten trips departing from one stop and arriving at another one, at a given date and time \textit{(assuming that the stop coordinates are known)}
+\begin{table}[h!]
+	\centering
+	\begin{tabular}{|c|c|c|}
+		\hline
+		\textbf{Concept} & \textbf{Accesses} & \textbf{Type} \\
+		\hline
+		StopsAt & 30 & Read \\ \hline
+		Trip & 30 & Read \\ \hline
+		Calendar & 30 & Read \\ \hline
+		HasExceptionOn & 225 & Read \\ \hline
+		Line & 10 & Read \\ \hline
+	\end{tabular}
+	\caption{Access table for operation 4}\label{tbl:rest.access-4}
+\end{table}
+
+\paragraph{(5)} Add a new company given the name and the headquarter city, \textit{and considering that all possible cities are already loaded into the database}
+
+\begin{table}[h]
+	\centering
+	\begin{tabular}{|c|c|c|}
+		\hline
+		\textbf{Concept} & \textbf{Accesses} & \textbf{Type} \\
+		\hline
+		City & 1 & Read \\ \hline
+		Company & 1 & Write \\ \hline
+	\end{tabular}
+	\caption{Access table for operation 5}\label{tbl:rest.access-5}
+\end{table}
+
+\paragraph{(6)} Add a new line given short code, color, type of vehicle and city, \textit{and considering that all possible cities are already loaded into the database}
+
+\begin{table}[h]
+	\centering
+	\begin{tabular}{|c|c|c|}
+		\hline
+		\textbf{Concept} & \textbf{Accesses} & \textbf{Type} \\
+		\hline
+		City & 1 & Read \\ \hline
+		Line & 1 & Write \\ \hline
+	\end{tabular}
+	\caption{Access table for operation 6}\label{tbl:rest.access-6}
+\end{table}
+
+\paragraph{(7)} Add a new trip given the code, the timetable, the operating company and the calendar
+
+\begin{table}[h]
+	\centering
+	\begin{tabular}{|c|c|c|}
+		\hline
+		\textbf{Concept} & \textbf{Accesses} & \textbf{Type} \\
+		\hline
+		Trip & 1 & Write \\ \hline
+		stopsAt & 9 & Write \\ \hline
+	\end{tabular}
+	\caption{Access table for operation 7}\label{tbl:rest.access-7}
+\end{table}
+
+\paragraph{(8)} Modify the schedule for a calendar knowing its code (add one exceptional date)
+\begin{table}[h!]
+	\centering
+	\begin{tabular}{|c|c|c|}
+		\hline
+		\textbf{Concept} & \textbf{Accesses} & \textbf{Type} \\
+		\hline
+		HasException & 1 & Write \\ \hline
+	\end{tabular}
+	\caption{Access table for operation 8}\label{tbl:rest.access-8}
+\end{table}
+
+\section{SQL Specification}
+
+	Three attatched files are present in the \texttt{sql} directory:
+	\begin{itemize}[itemsep=0pt]
+		\item \texttt{base.sql} contains the definition of the various relations
+		\item \texttt{data.sql} contains some sample data
+		\item \texttt{full.sql} is the dump of the complete database, left for fallback
+	\end{itemize}
+
+	They may be imported into a local instance with the following commands:
+	\begin{center}
+		\begin{lstlisting}
+			psql
+			postgres=# \i base.sql
+			publictransport_17573=# \i data.sql
+		\end{lstlisting}
+	\end{center}
+
+	As it may be seen, tuple and external constraints have been implemented either as CHECK operations or as triggers with stored procedures. Note that external constraints 5-6 were considered too difficult and as such they have not been implemented. Constraint 4 was implemented by relying on postgres' \texttt{Serial} data type, which represents an increasing integer that start from 1. The domain \texttt{VehicleType} for a \textit{Line} has been created as a custom type.
+
+\subsection{Queries related to the operations}
+
+	\paragraph{(1)} Get a list of \textit{(maximum)} ten stops with name in a specific language matching the user-given string. \textit{Parameters: stop name, language}
+	\begin{center}
+		\begin{lstlisting}
+	SELECT S.city, SN.value AS name, S.latitude, S.longitude
+	FROM Stop S, StopHasName SN
+	WHERE S.latitude=SN.latitude AND S.longitude=SN.longitude
+	AND SN.value ILIKE _name_ AND SN.language=_language_;
+		\end{lstlisting}
+	\end{center}
+
+	\paragraph{(2)} Get a list of \textit{(maximum)} ten stops with name in a specific language that are contained in a set of coordinates. \textit{Parameters: latitude, longitude, radius, language}
+	\begin{center}
+	\begin{lstlisting}
+	SELECT S.city, SN.value AS name, S.latitude, S.longitude
+	FROM Stop S, StopHasName SN
+	WHERE SN.latitude=S.latitude AND SN.longitude=S.longitude
+	AND acos( cos(radians(_latitude_)) * cos(radians(S.latitude)) *
+	cos(radians(S.longitude) - radians(_longitude_)) + sin(radians(_latitude_)) *
+	sin(radians(S.latitude)) ) * 6371393 <= _radius_
+	AND S.platformName IS NULL AND SN.language=_language_;
+	\end{lstlisting}
+\end{center}
+
+	\newpage
+	\paragraph{(3)} Find the next ten trips, with line and company information, that depart from a specific stop at a given date and time. \textit{Parameters: stop latitude, stop longitude, date and time}
+	\begin{center}
+		\begin{lstlisting}
+	SELECT T.company, L.shortCode AS Line, L.vehicleType, T.code as "Trip Code",
+	  SA.departureTime AS "Departure Time"
+	FROM trip T, calendar C, stopsAt SA, line L
+	WHERE SA.latitude=_stopLat_ AND SA.longitude=_stopLon
+	AND SA.departureTime>=_time_ AND T.calendar=C.ID
+	AND T.code=SA.trip AND T.lineCode=L.shortCode
+	AND (
+	((C._dayOfWeek_=True) AND (_date_ NOT IN (SELECT date FROM HasExceptionOn E
+		WHERE suppressed=True AND E.calendar=C.ID)))
+	OR (_date_ IN (SELECT date FROM HasExceptionOn E
+		WHERE suppressed=False AND E.calendar=C.ID))
+	)
+	ORDER BY SA.arrivalTime
+	LIMIT 10;
+		\end{lstlisting}
+	\end{center}
+
+	\paragraph{(4)} Find the next ten trips departing from one stop and arriving at another one, at a given date and time. \textit{Parameters: latitude and longitude for the two stops, date and time}
+	\begin{center}
+		\begin{lstlisting}
+	SELECT T.company, L.shortCode AS Line, L.vehicleType, T.code as "Trip Code",
+	  S1.departureTime AS "Departure Time", S2.arrivalTime AS "Arrival Time",
+	  (S2.arrivalTime-S1.departureTime) AS duration
+	FROM trip T, calendar C, stopsAt S1, stopsAt S2, line L
+	WHERE S1.latitude=_s1lat_ AND S1.longitude=_s1lat_ AND S2.latitude=_s2lat_
+	AND S2.longitude=_s2lon_ AND S1.departureTime>=_time_
+	AND S1.trip=S2.trip AND T.calendar=C.ID AND T.code=S1.trip
+	AND T.lineCode=L.shortCode
+	AND (
+	((C._dayOfWeek_=True) AND (_date_ NOT IN (SELECT date FROM HasExceptionOn E
+		WHERE suppressed=True AND E.calendar=C.ID)))
+	OR (_date_ IN (SELECT date FROM HasExceptionOn E
+		WHERE suppressed=False AND E.calendar=C.ID))
+	)
+	ORDER BY S1.arrivalTime
+	LIMIT 10;
+		\end{lstlisting}
+	\end{center}
+
+	\paragraph{(5)} Add a new company given the name and the headquarter city. \textit{Parameters: company name, company city}
+	\begin{center}
+		\begin{lstlisting}
+		INSERT INTO Company(name,headquarterCity) VALUES(...);
+		\end{lstlisting}
+	\end{center}
+
+	\paragraph{(6)} Add a new line given short code, color, type of vehicle and city. \textit{Parameters: line short code, departing city, color, vehicle type}
+	\begin{center}
+		\begin{lstlisting}
+	INSERT INTO Line(shortCode, color, vehicleType, cityName) VALUES (...);
+		\end{lstlisting}
+	\end{center}
+
+	\paragraph{(7)} Add a new trip given the code, the timetable, the operating company and the calendar. \textit{Parameters: trip code, calendar ID, line code and departing city, company name. List of stops with the timetable (arrival and departure time)}
+	\begin{center}
+		\begin{lstlisting}
+	INSERT INTO Trip(code,calendar,lineCode,lineCity,company) VALUES (...);
+	INSERT INTO StopsAt(latitude,longitude,arrivalTime,departureTime) VALUES (...);
+		\end{lstlisting}
+	\end{center}
+
+	\paragraph{(8)} Modify the schedule for a calendar knowing its code (add one exceptional date). \textit{Parameters: date, calendar ID, suppression state}
+	\begin{center}
+		\begin{lstlisting}
+	INSERT INTO HasExceptionOn(date, calendar, suppressed) VALUES (...);
+		\end{lstlisting}
+	\end{center}
+
+\section{Java Applcation}
+
+	The Java code is available in the \texttt{app/code.zip }file. A ready-to-be-run file is found in the \texttt{app} directory. It may be executed in a terminal with:
+	\begin{center}
+		\begin{lstlisting}
+		java -jar app/publictransport_17573.jar
+		\end{lstlisting}
+	\end{center}
+
+	Note that Java 15 is required. It may be needed to specify the path to postgresql driver with \texttt{-classpath} argument. The connection parameters may be altered by modifying the \texttt{database.properties} file.
+
+	The application allows to execute the queries related to the table of operations. After the initialization, the user is presented with a menu, from which all operations can be run:
+
+	\begin{center}
+		\centering
+		\begin{lstlisting}
+		****** Introduction to Databases project ******
+
+		Connecting... successfully connected to the database
+
+
+		------------ MENU ------------
+		1) Stops by name
+		2) Stops by coordinates
+		3) Trips per Stop
+		4) Trips between two stops
+		5) Add new company
+		6) Add new line
+		7) Add new trip
+		8) Modify calendar schedule
+		9) Exit
+		------------------------------
+		Please choose an item:
+		\end{lstlisting}
+	\end{center}
